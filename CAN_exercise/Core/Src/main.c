@@ -25,6 +25,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,6 +37,8 @@
 /* USER CODE BEGIN PD */
 
 #define MAX_CAN_MESSAGES 10
+
+void Motor_PrintData(float var);
 
 typedef struct {
   uint32_t id;          // 消息ID
@@ -126,18 +129,38 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
   CAN_RxHeaderTypeDef rx_header;
   uint8_t rx_data[8];
   HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header,rx_data) ;
-  uint16_t ecd_angle_mid = (rx_data[0] << 8) | rx_data[1];
+  uint16_t ecd_angle_mid = ((uint16_t)rx_data[0] << 8) | rx_data[1];
   ecd_angle_ = linearMapping (ecd_angle_mid, 0, 8191,  0.0, 360) ;
-  uint16_t rotate_speed_mid = (rx_data[2] << 8) | rx_data[3];
+  delta_ecd_angle_ = ecd_angle_ - last_ecd_angle_;
+   if (delta_ecd_angle_ > 180) {
+        delta_ecd_angle_ -= 360;
+   }
+  else if (delta_ecd_angle_ < -180) {
+        delta_ecd_angle_ += 360;
+  }
+  last_ecd_angle_ = ecd_angle_;
+  int32_t rotate_speed_mid = (int16_t)((uint16_t)rx_data[2] << 8) | rx_data[3];
   rotate_speed_ = (float)(rotate_speed_mid * 6);
   int16_t current_mid = (rx_data[4] << 8) | rx_data[5];
   current_ = linearMapping (current_mid, -16384, 16384,  -20.0,20.0) ;
   uint8_t temp_mid = rx_data[6];
   temp_ = (float)(temp_mid);
 
-  printf("Motor Speed: %d RPM, Current: %d mA\n", rotate_speed_, current_);
+  Motor_PrintData (rotate_speed_);
+  // Motor_PrintData(rotate_speed_, current_);
 
 }
+
+uint8_t tx_data[8];
+
+void Motor_PrintData(float var) {
+  // var = 0.1;
+  memset(tx_data, 0, sizeof(tx_data));
+  sprintf(tx_data,"%.2f\n", var);
+  HAL_UART_Transmit(&huart6, tx_data, 8, 100);
+  // printf("Motor Speed: %d RPM, Current: %d mA\n", rotate_speed_, current_);
+}
+
 
 //UART
 /*
@@ -180,12 +203,14 @@ int main(void)
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
+
   /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
+
   /* USER CODE BEGIN SysInit */
 
   /* USER CODE END SysInit */
@@ -196,6 +221,8 @@ int main(void)
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+  // HAL_UART_Transmit(&huart6,"Hello",6,100);
   // HAL_CAN_ConfigFilter(&hcan1, CAN_RX_FIFO0);
   // HAL_CAN_Start(&hcan1);
   // HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
@@ -268,11 +295,12 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+/*
 int _write(int file,char * ch, int len) {
   HAL_UART_Transmit(&huart6, (uint8_t *)ch, 1,  10);
   return 1;
 
-}
+}*/
 /* USER CODE END 4 */
 
 /**
