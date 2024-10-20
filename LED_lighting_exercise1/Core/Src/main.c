@@ -107,10 +107,6 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
-
-
-
-
   HAL_TIM_Base_Start_IT(&htim1);
   HAL_TIM_Base_Start_IT(&htim6);
 
